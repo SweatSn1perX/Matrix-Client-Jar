@@ -1,0 +1,22 @@
+{
+    "required": true,
+    "package": "net.matrix.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "mixins": [
+        "KeyboardMixin",
+        "MatrixClientMixin",
+        "VelocityMixin",
+        "ReachMixin",
+        "PlayerInventoryAccessor",
+        "InGameHudMixin",
+        "TitleScreenMixin",
+        "ChatMessageMixin",
+        "WorldRendererMixin",
+        "ShaderLoaderMixin",
+        "ClientConnectionMixin"
+    ],
+    "client": [],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

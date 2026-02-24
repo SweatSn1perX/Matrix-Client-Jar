@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "matrix",
+  "version": "1.21.11",
+  "name": "Matrix",
+  "description": "Mace PVP Ghost Client.",
+  "authors": [
+    "ToyBoy3101"
+  ],
+  "contact": {},
+  "license": "CC0-1.0",
+  "icon": "icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "net.matrix.Matrix"
+    ]
+  },
+  "mixins": [
+    "matrix.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": ">=1.21",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

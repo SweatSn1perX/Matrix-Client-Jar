@@ -1,0 +1,101 @@
+# ===========================
+# Build & Compilation Output
+# ===========================
+build/
+out/
+*.class
+*.jar
+*.war
+
+# ===========================
+# IDE & OS Files
+# ===========================
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# ===========================
+# Gradle
+# ===========================
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# ===========================
+# Runtime / Test Data
+# ===========================
+run/
+temp_src/
+my_mapped_src/
+
+# ===========================
+# SECURITY: Backend / Server Code
+# (Never push server logic to client repo)
+# ===========================
+GoogleAppsScript_Backend.js
+GoogleAppsScript_Backend.txt
+CryptoJS.js
+
+# ===========================
+# SECURITY: Root-level test/utility files
+# (Contain hardcoded URLs, tokens, credentials)
+# ===========================
+TestRequest.java
+test_auth.java
+test_payload.java
+test_logic.java
+KeyGen.java
+EncryptURL.java
+DecryptTest.java
+TestDecrypt.java
+TestObfuscation.java
+
+# ===========================
+# SECURITY: Compiled test classes at root
+# ===========================
+test.class
+test_auth.class
+test_payload.class
+DecryptTest.class
+EncodeUrl.class
+EncryptURL.class
+KeyGen.class
+TestDecrypt.class
+TestObfuscation.class
+
+# ===========================
+# SECURITY: Test files inside src that have credentials
+# ===========================
+src/main/java/TestRequest.java
+src/main/java/test/
+
+# ===========================
+# Misc sensitive / scratch files
+# ===========================
+colorhelper_p.txt
+drawcontext_p.txt
+dictionary.txt
+image.png
+matrix-test.jar
+
+# ===========================
+# Environment / Secrets (future-proofing)
+# ===========================
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+credentials.dat
+src/main/resources/assets/matrix/credentials.dat
+
+# ===========================
+# Website (separate repo)
+# ===========================
+website/
+
+# Eclipse IDE files (contain local paths)
+buildSrc/.classpath
+buildSrc/.project
+buildSrc/.settings/
