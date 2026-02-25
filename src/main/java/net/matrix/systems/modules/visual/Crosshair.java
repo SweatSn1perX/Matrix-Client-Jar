@@ -99,23 +99,27 @@ public class Crosshair extends Module {
                     icy - halfThick + thick, color);
         }
 
-        // Cross lines — gap is measured from the outer edge of the center dot
-        // so all 4 prongs are always equidistant from the dot regardless of thickness.
+        // Compute the actual pixel edges of the center dot
+        // All 4 prongs measure their gap from these edges, guaranteeing equal spacing.
+        int dotLeft   = icx - halfThick;
+        int dotRight  = icx - halfThick + thick;
+        int dotTop    = icy - halfThick;
+        int dotBottom = icy - halfThick + thick;
+
+        // Cross lines — each prong starts exactly gapPx pixels from its adjacent dot edge
         if (lines.get()) {
-            // dotHalf = half the dot size (edge of dot from center pixel)
-            int dotHalf = halfThick;
-            // Top: prong bottom edge starts dotHalf + gapPx above center
-            context.fill(icx - halfThick, icy - dotHalf - gapPx - lineLen,
-                    icx - halfThick + thick, icy - dotHalf - gapPx, color);
-            // Bottom: prong top edge starts dotHalf + gapPx below center
-            context.fill(icx - halfThick, icy + dotHalf + gapPx,
-                    icx - halfThick + thick, icy + dotHalf + gapPx + lineLen, color);
-            // Left: prong right edge starts dotHalf + gapPx left of center
-            context.fill(icx - dotHalf - gapPx - lineLen, icy - halfThick,
-                    icx - dotHalf - gapPx, icy - halfThick + thick, color);
-            // Right: prong left edge starts dotHalf + gapPx right of center
-            context.fill(icx + dotHalf + gapPx, icy - halfThick,
-                    icx + dotHalf + gapPx + lineLen, icy - halfThick + thick, color);
+            // Top prong: bottom edge = dotTop - gapPx
+            context.fill(icx - halfThick, dotTop - gapPx - lineLen,
+                    icx - halfThick + thick, dotTop - gapPx, color);
+            // Bottom prong: top edge = dotBottom + gapPx
+            context.fill(icx - halfThick, dotBottom + gapPx,
+                    icx - halfThick + thick, dotBottom + gapPx + lineLen, color);
+            // Left prong: right edge = dotLeft - gapPx
+            context.fill(dotLeft - gapPx - lineLen, icy - halfThick,
+                    dotLeft - gapPx, icy - halfThick + thick, color);
+            // Right prong: left edge = dotRight + gapPx
+            context.fill(dotRight + gapPx, icy - halfThick,
+                    dotRight + gapPx + lineLen, icy - halfThick + thick, color);
         }
 
         // Hitmarker
