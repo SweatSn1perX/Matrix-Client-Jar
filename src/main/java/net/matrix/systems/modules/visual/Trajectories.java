@@ -18,16 +18,12 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Trajectories — Renders predicted projectile paths in 3D.
- * 
- * Supports: Bows, Crossbows, Tridents, Ender Pearls, Snowballs, Eggs,
- * Experience Bottles, Wind Charges, Splash/Lingering Potions.
- * 
- * Inspired by Meteor Client's Trajectories module.
+ *
+ * Closely follows Meteor Client's Trajectories implementation.
  */
 public class Trajectories extends Module implements Render3DModule {
 
@@ -37,8 +33,6 @@ public class Trajectories extends Module implements Render3DModule {
 
     public final Setting.BooleanSetting otherPlayers = new Setting.BooleanSetting(
             "Other Players", "Calculate trajectories for other players", false);
-
-
 
     // ── Render Settings ──
     public final Setting.StringSetting lineColor = new Setting.StringSetting(
@@ -52,6 +46,14 @@ public class Trajectories extends Module implements Render3DModule {
 
     public final Setting.BooleanSetting renderEntityBox = new Setting.BooleanSetting(
             "Entity Box", "Highlight entities that will be hit", true);
+
+    /**
+     * Number of initial path ticks to skip rendering for the local player.
+     * Matches Meteor's "ignoreFirstTicks" (default 3).
+     * This prevents visual artifacts near the camera caused by the offset between
+     * the view-bobbed camera position and the un-bobbed physics origin.
+     */
+    private static final int IGNORE_FIRST_TICKS = 3;
 
     public Trajectories() {
         super(Category.VISUAL, "Trajectories", "Predicts projectile paths for throwable and shootable items.");
@@ -71,19 +73,17 @@ public class Trajectories extends Module implements Render3DModule {
 
         Color c = Color.fromHex(lineColor.get());
         int r = c.r, g = c.g, b = c.b, a = lineAlpha.get();
-        float lw = 0.5f;
 
-        // Set line width for this render cycle
-        RenderUtils.setLineWidth(lw);
+        RenderUtils.setLineWidth(0.5f);
 
         // ── Player trajectories ──
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (!otherPlayers.get() && player != mc.player) continue;
 
-            ProjectileSimulator.SimulationResult result = ProjectileSimulator.simulate(player, tickDelta);
-            if (result != null) {
-                renderPath(matrices, cameraPos, result, r, g, b, a, 0, tickDelta);
-            }
+            ProjectileSimulator.SimulationResult result = ProjectileSimulator.simulate(player, tickDelta, cameraPos);
+            if (result == null) continue;
+
+            renderPath(matrices, cameraPos, result, r, g, b, a, 0, tickDelta);
         }
 
         // ── Fired projectile trajectories ──
@@ -108,16 +108,16 @@ public class Trajectories extends Module implements Render3DModule {
         List<Vec3d> path = result.path;
         if (path.size() < 2) return;
 
-        // Clamp startIdx
+        // Clamp startIdx to valid range
         if (startIdx >= path.size() - 1) startIdx = 0;
 
         // ── Draw path line segments ──
+        // Matches Meteor's Path.render() — simple iteration, no anchoring hacks
         Vec3d lastPoint = null;
         for (int i = startIdx; i < path.size(); i++) {
             Vec3d point = path.get(i).subtract(cameraPos);
 
             if (lastPoint != null) {
-                // Fade opacity towards end of path
                 float progress = (float) i / path.size();
                 int segAlpha = (int) (a * (1.0f - progress * 0.4f));
                 RenderUtils.drawLine3D(matrices, lastPoint, point, r, g, b, segAlpha);
@@ -136,10 +136,23 @@ public class Trajectories extends Module implements Render3DModule {
                 double hs = 0.25; // half-size of the impact quad
 
                 if (side == Direction.UP || side == Direction.DOWN) {
-                    // Horizontal flat quad
-                    double y = hitPos.y + (side == Direction.UP ? 0.01 : -0.01);
+                    // Filled horizontal disc at impact point
+                    double y = hitPos.y + (side == Direction.UP ? 0.005 : -0.005);
+                    // Draw filled disc using triangle fan
+                    int segments = 24;
+                    for (int seg = 0; seg < segments; seg++) {
+                        double angle1 = (2.0 * Math.PI * seg) / segments;
+                        double angle2 = (2.0 * Math.PI * (seg + 1)) / segments;
+                        Vec3d center = new Vec3d(hitPos.x, y, hitPos.z);
+                        Vec3d p1 = new Vec3d(hitPos.x + Math.cos(angle1) * hs, y, hitPos.z + Math.sin(angle1) * hs);
+                        Vec3d p2 = new Vec3d(hitPos.x + Math.cos(angle2) * hs, y, hitPos.z + Math.sin(angle2) * hs);
+                        // Draw as two line segments per triangle (approximates fill)
+                        RenderUtils.drawLine3D(matrices, center, p1, 255, 50, 50, 120);
+                        RenderUtils.drawLine3D(matrices, p1, p2, 255, 50, 50, 160);
+                    }
+                    // Outline on top
                     RenderUtils.drawCircle3D(matrices, hitPos.x, y, hitPos.z,
-                            hs, 16, 255, 50, 50, 180);
+                            hs, segments, 255, 50, 50, 220);
                 } else if (side == Direction.NORTH || side == Direction.SOUTH) {
                     // Vertical on Z axis
                     Box hitBox = new Box(

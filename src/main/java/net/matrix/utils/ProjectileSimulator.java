@@ -36,9 +36,10 @@ public class ProjectileSimulator {
         }
     }
 
-    /** Physics constants for different projectile types. */
-    private record ProjectileInfo(double gravity, double drag, double power, float divergence, double size) {
-        static final ProjectileInfo ARROW     = new ProjectileInfo(0.05, 0.99, 1.0, 1.0f, 0.5);
+    /** Physics constants for different projectile types. Matches Meteor Client. */
+    private record ProjectileInfo(double gravity, double drag, double power, float roll, double size) {
+        // ThrownEntity physics (gravity -> drag -> position)
+        static final ProjectileInfo ARROW     = new ProjectileInfo(0.05, 0.99, 1.0, 0.0f, 0.5);
         static final ProjectileInfo PEARL     = new ProjectileInfo(0.03, 0.99, 1.5, 0.0f, 0.25);
         static final ProjectileInfo POTION    = new ProjectileInfo(0.05, 0.99, 0.5, -20.0f, 0.25);
         static final ProjectileInfo EGG       = new ProjectileInfo(0.03, 0.99, 1.5, 0.0f, 0.25);
@@ -46,14 +47,18 @@ public class ProjectileSimulator {
         static final ProjectileInfo XP_BOTTLE = new ProjectileInfo(0.07, 0.99, 0.7, -20.0f, 0.25);
         static final ProjectileInfo TRIDENT   = new ProjectileInfo(0.05, 0.99, 2.5, 0.0f, 0.5);
         static final ProjectileInfo WIND      = new ProjectileInfo(0.0, 1.0, 1.5, 0.0f, 0.3125);
-        static final ProjectileInfo FIREWORK  = new ProjectileInfo(0.0, 1.0, 1.6, 1.0f, 0.25);
+        static final ProjectileInfo FIREWORK  = new ProjectileInfo(0.0, 1.0, 1.6, 0.0f, 0.25);
     }
+
+    private static final double DEG_TO_RAD = Math.PI / 180.0;
 
     /**
      * Simulate a trajectory for the item held by the player.
      * Returns null if the player's held item is not a projectile weapon.
+     *
+     * Physics origin and direction exactly match Meteor Client's ProjectileEntitySimulator.set().
      */
-    public static SimulationResult simulate(PlayerEntity player, float tickDelta) {
+    public static SimulationResult simulate(PlayerEntity player, float tickDelta, Vec3d cameraPos) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.world == null) return null;
 
@@ -68,24 +73,23 @@ public class ProjectileSimulator {
             if (info == null) return null;
         }
 
-        // Starting position: player eye position
-        Vec3d eyePos = player.getEyePos();
+        // ── Origin: Use the exact cameraPos that the renderer subtracts ──
+        // This guarantees path[0] - cameraPos = (0,0,0) = crosshair.
+        // Since cameraPos cancels out in rendered[i] = path[i] - cameraPos,
+        // the rendered trajectory depends ONLY on velocity (stable player rotation).
+        // Result: zero sway, perfect crosshair alignment, perfect landing marker alignment.
+        Vec3d startPos = cameraPos;
 
-        // Calculate initial velocity from look direction
-        float yaw = player.getYaw();
-        float pitch = player.getPitch();
+        // ── Direction: Matches Meteor's exact formula ──
+        // Meteor: x = -sin(yaw * 0.017453292) * cos(pitch * 0.017453292)
+        //         y = -sin((pitch + roll) * 0.017453292)
+        //         z = cos(yaw * 0.017453292) * cos(pitch * 0.017453292)
+        float yaw = player.getYaw(tickDelta);
+        float pitch = player.getPitch(tickDelta);
 
-        // Adjust pitch for potions/XP bottles (thrown upward)
-        if (info == ProjectileInfo.POTION || info == ProjectileInfo.XP_BOTTLE) {
-            pitch += info.divergence;
-        }
-
-        double cosYaw = Math.cos(-yaw * (Math.PI / 180.0) - Math.PI);
-        double sinYaw = Math.sin(-yaw * (Math.PI / 180.0) - Math.PI);
-        double cosPitch = -Math.cos(-pitch * (Math.PI / 180.0));
-        double sinPitch = Math.sin(-pitch * (Math.PI / 180.0));
-
-        Vec3d direction = new Vec3d(sinYaw * cosPitch, sinPitch, cosYaw * cosPitch).normalize();
+        double x = -Math.sin(yaw * DEG_TO_RAD) * Math.cos(pitch * DEG_TO_RAD);
+        double y = -Math.sin((pitch + info.roll) * DEG_TO_RAD);
+        double z = Math.cos(yaw * DEG_TO_RAD) * Math.cos(pitch * DEG_TO_RAD);
 
         double power = info.power;
 
@@ -101,7 +105,6 @@ public class ProjectileSimulator {
         if (stack.getItem() instanceof CrossbowItem) {
             ChargedProjectilesComponent charged = stack.get(DataComponentTypes.CHARGED_PROJECTILES);
             if (charged == null || charged.isEmpty()) return null;
-            // Crossbow fires at speed 3.15 for arrows, 1.6 for fireworks
             ItemStack projectile = charged.getProjectiles().get(0);
             if (projectile.getItem() instanceof FireworkRocketItem) {
                 info = ProjectileInfo.FIREWORK;
@@ -111,17 +114,11 @@ public class ProjectileSimulator {
             }
         }
 
-        Vec3d velocity = direction.multiply(power);
+        // Velocity: normalize direction then scale by power (matches Meteor)
+        double len = Math.sqrt(x * x + y * y + z * z);
+        Vec3d velocity = new Vec3d((x / len) * power, (y / len) * power, (z / len) * power);
 
-        // Offset start position slightly from eye (like MC does)
-        Vec3d pos = eyePos;
-        if (!(stack.getItem() instanceof CrossbowItem)) {
-            // Projectiles start slightly offset from center
-            pos = pos.add(direction.multiply(0.0));
-        }
-
-        // Run simulation
-        return runSimulation(mc, player, pos, velocity, info, 500);
+        return runSimulation(mc, player, startPos, velocity, info, 500);
     }
 
     /**
@@ -164,6 +161,9 @@ public class ProjectileSimulator {
         path.add(pos);
 
         for (int i = 0; i < maxTicks; i++) {
+            // ── Apply physics: gravity -> drag -> position (ThrownEntity order from Meteor) ──
+            vel = vel.add(0, -info.gravity, 0);
+            vel = vel.multiply(info.drag);
             Vec3d nextPos = pos.add(vel);
 
             // ─── Block Collision ─────────────────
@@ -188,14 +188,18 @@ public class ProjectileSimulator {
                 if (!(entity instanceof LivingEntity)) continue;
                 if (!entity.isAlive()) continue;
 
-                Box entityBox = entity.getBoundingBox().expand(0.3);
+                Box entityBox = entity.getBoundingBox();
                 java.util.Optional<Vec3d> hitOpt = entityBox.raycast(pos, nextPos);
                 if (hitOpt.isPresent()) {
-                    double dist = pos.squaredDistanceTo(hitOpt.get());
+                    Vec3d hitPoint = hitOpt.get();
+                    // Ensure the hit point is in the forward direction
+                    if (hitPoint.subtract(pos).dotProduct(vel) < 0) continue;
+
+                    double dist = pos.squaredDistanceTo(hitPoint);
                     if (dist < closestDist) {
                         closestDist = dist;
                         closestEntity = entity;
-                        closestHitPos = hitOpt.get();
+                        closestHitPos = hitPoint;
                     }
                 }
             }
@@ -206,9 +210,6 @@ public class ProjectileSimulator {
                 return new SimulationResult(path, entityHitResult, closestEntity);
             }
 
-            // ─── Apply physics ───────────────────
-            vel = vel.multiply(info.drag);
-            vel = vel.add(0, -info.gravity, 0);
             pos = nextPos;
             path.add(pos);
         }

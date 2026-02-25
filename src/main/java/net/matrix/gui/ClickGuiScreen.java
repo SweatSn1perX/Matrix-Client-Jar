@@ -872,6 +872,19 @@ public class ClickGuiScreen extends Screen {
 
         ctx.enableScissor(panelX + BORDER_THICKNESS, top, panelX + PANEL_W - BORDER_THICKNESS, bottom);
 
+        // Render scrollbar
+        int contentHeight = getConfigsContentHeight();
+        int viewportHeight = bottom - top - 16;
+        if (contentHeight > viewportHeight) {
+            int sbX = panelX + PANEL_W - BORDER_THICKNESS - 6;
+            int sbY = top + 8;
+            int sbH = viewportHeight;
+            int thumbH = Math.max(20, (int) ((float) viewportHeight / contentHeight * viewportHeight));
+            int thumbY = sbY + (int) ((float) configScroll / (contentHeight - viewportHeight) * (viewportHeight - thumbH));
+            ctx.fill(sbX, sbY, sbX + 4, sbY + sbH, 0x40000000);
+            ctx.fill(sbX, thumbY, sbX + 4, thumbY + thumbH, ACCENT_DIM);
+        }
+
         int y = top + 8 - (int) configScroll;
 
         // Title
@@ -947,6 +960,19 @@ public class ClickGuiScreen extends Screen {
 
         ctx.enableScissor(panelX + BORDER_THICKNESS, top, panelX + PANEL_W - BORDER_THICKNESS, bottom);
 
+        // Render scrollbar
+        int contentHeight = getSettingsTabContentHeight();
+        int viewportHeight = bottom - top - 16;
+        if (contentHeight > viewportHeight) {
+            int sbX = panelX + PANEL_W - BORDER_THICKNESS - 6;
+            int sbY = top + 8;
+            int sbH = viewportHeight;
+            int thumbH = Math.max(20, (int) ((float) viewportHeight / contentHeight * viewportHeight));
+            int thumbY = sbY + (int) ((float) settingsTabScroll / (contentHeight - viewportHeight) * (viewportHeight - thumbH));
+            ctx.fill(sbX, sbY, sbX + 4, sbY + sbH, 0x40000000);
+            ctx.fill(sbX, thumbY, sbX + 4, thumbY + thumbH, ACCENT_DIM);
+        }
+
         int y = top + 8 - (int) settingsTabScroll;
 
         // ── GUI Colors Section ──
@@ -1020,8 +1046,8 @@ public class ClickGuiScreen extends Screen {
         ctx.drawText(textRenderer, "Logs saved to: matrix/users/<you>/chat.log", cx + 4, y, ACCENT_DIM, false);
         y += 24;
 
-        // ── Prefix System Toggle & Help ──
-        ctx.drawText(textRenderer, "Prefix System", cx, y, TEXT_COLOR, true);
+        // ── Command System Toggle & Help ──
+        ctx.drawText(textRenderer, "Command System", cx, y, TEXT_COLOR, true);
         
         // Prefix config button
         String currentPrefix = Screens.commandPrefix.get();
@@ -1152,6 +1178,37 @@ public class ClickGuiScreen extends Screen {
         return h + 10; // Bottom padding
     }
 
+    private int getConfigsContentHeight() {
+        int h = 8; // Top padding
+        h += 16; // Title
+        if (!configStatusMsg.isEmpty() && System.currentTimeMillis() - configStatusTime < 3000) {
+            h += 14; // Status message
+        }
+        h += 8; // Separator
+        if (savedConfigs.isEmpty()) {
+            h += 20;
+        } else {
+            h += savedConfigs.size() * 22;
+        }
+        return h + 10; // Bottom padding
+    }
+
+    private int getSettingsTabContentHeight() {
+        int h = 8; // Top padding
+        h += 18; // GUI Colors title
+        h += 5 * 22; // 5 color settings
+        h += 4; // Padding
+        h += 26; // Reset button
+        h += 14; // Separator
+        h += 18; // Chat Logging title
+        h += 26; // Toggle 1
+        h += 26; // Toggle 2
+        h += 24; // Path help
+        h += 18; // Command system title
+        h += 18 + 14 + 10 + 14 + 10 + 14 + 10 + 20; // Command system help
+        return h + 10; // Bottom padding
+    }
+
     // ═══════════════════════════════════════════════════════
     // INPUT HANDLING
     // ═══════════════════════════════════════════════════════
@@ -1223,11 +1280,29 @@ public class ClickGuiScreen extends Screen {
 
         // ── Config tab click handling ──
         if (activeTab == Tab.CONFIGURATIONS) {
+            int sbX = panelX + PANEL_W - BORDER_THICKNESS - 10;
+            if (mouseX >= sbX && mouseX <= panelX + PANEL_W && mouseY >= panelY + BORDER_THICKNESS && mouseY <= panelY + PANEL_H - BORDER_THICKNESS) {
+                int ch = getConfigsContentHeight();
+                int vh = PANEL_H - BORDER_THICKNESS * 2 - 16;
+                if (ch > vh) {
+                    draggingSettingsScrollbar = true;
+                    return true;
+                }
+            }
             return handleConfigsTabClick((int) mouseX, (int) mouseY);
         }
 
         // ── Settings tab click handling ──
         if (activeTab == Tab.SETTINGS) {
+            int sbX = panelX + PANEL_W - BORDER_THICKNESS - 10;
+            if (mouseX >= sbX && mouseX <= panelX + PANEL_W && mouseY >= panelY + BORDER_THICKNESS && mouseY <= panelY + PANEL_H - BORDER_THICKNESS) {
+                int ch = getSettingsTabContentHeight();
+                int vh = PANEL_H - BORDER_THICKNESS * 2 - 16;
+                if (ch > vh) {
+                    draggingSettingsScrollbar = true;
+                    return true;
+                }
+            }
             return handleSettingsTabClick((int) mouseX, (int) mouseY);
         }
 
@@ -1304,12 +1379,14 @@ public class ClickGuiScreen extends Screen {
             int settingsBottom = panelY + PANEL_H - BORDER_THICKNESS;
 
             // Hitbox for scrollbar interaction (slightly wider)
-            if (mouseX >= sx && mouseX <= sx + 10 && mouseY >= settingsTop && mouseY <= settingsBottom) {
-                int contentHeight = getSettingsContentHeight();
-                int viewportHeight = settingsBottom - settingsTop - 20;
-                if (contentHeight > viewportHeight) {
-                    draggingSettingsScrollbar = true;
-                    return true;
+            if (activeTab == Tab.MODULES) {
+                if (mouseX >= sx && mouseX <= sx + 10 && mouseY >= settingsTop && mouseY <= settingsBottom) {
+                    int contentHeight = getSettingsContentHeight();
+                    int viewportHeight = settingsBottom - settingsTop - 20;
+                    if (contentHeight > viewportHeight) {
+                        draggingSettingsScrollbar = true;
+                        return true;
+                    }
                 }
             }
 
@@ -1665,16 +1742,29 @@ public class ClickGuiScreen extends Screen {
         int button = click.button();
 
         if (draggingSettingsScrollbar) {
-            int settingsTop = panelY + BORDER_THICKNESS + 5;
-            int settingsBottom = panelY + PANEL_H - BORDER_THICKNESS - 15;
-            int viewportHeight = settingsBottom - settingsTop;
-            int contentHeight = getSettingsContentHeight();
+            int top = panelY + BORDER_THICKNESS + 8;
+            int bottom = panelY + PANEL_H - BORDER_THICKNESS - 8;
+            int viewportHeight = bottom - top;
+            int contentHeight = 0;
+            
+            if (activeTab == Tab.MODULES) contentHeight = getSettingsContentHeight();
+            else if (activeTab == Tab.CONFIGURATIONS) contentHeight = getConfigsContentHeight();
+            else if (activeTab == Tab.SETTINGS) contentHeight = getSettingsTabContentHeight();
 
             if (contentHeight > viewportHeight) {
                 float ratio = (float) deltaY / (viewportHeight
                         - Math.max(20, (int) ((float) viewportHeight / contentHeight * viewportHeight)));
-                settingsScroll += ratio * (contentHeight - viewportHeight);
-                clampSettingsScroll();
+                
+                if (activeTab == Tab.MODULES) {
+                    settingsScroll += ratio * (contentHeight - viewportHeight);
+                    clampSettingsScroll();
+                } else if (activeTab == Tab.CONFIGURATIONS) {
+                    configScroll += ratio * (contentHeight - viewportHeight);
+                    clampConfigsScroll();
+                } else if (activeTab == Tab.SETTINGS) {
+                    settingsTabScroll += ratio * (contentHeight - viewportHeight);
+                    clampSettingsTabScroll();
+                }
             }
             return true;
         }
@@ -1792,7 +1882,7 @@ public class ClickGuiScreen extends Screen {
         if (activeTab == Tab.CONFIGURATIONS && mouseX >= panelX && mouseX < panelX + PANEL_W
                 && mouseY >= panelY && mouseY < panelY + PANEL_H) {
             configScroll -= verticalAmount * 12;
-            configScroll = Math.max(0, configScroll);
+            clampConfigsScroll();
             return true;
         }
 
@@ -1800,7 +1890,7 @@ public class ClickGuiScreen extends Screen {
         if (activeTab == Tab.SETTINGS && mouseX >= panelX && mouseX < panelX + PANEL_W
                 && mouseY >= panelY && mouseY < panelY + PANEL_H) {
             settingsTabScroll -= verticalAmount * 12;
-            settingsTabScroll = Math.max(0, settingsTabScroll);
+            clampSettingsTabScroll();
             return true;
         }
 
@@ -1813,9 +1903,23 @@ public class ClickGuiScreen extends Screen {
             return;
         }
         int contentHeight = getSettingsContentHeight();
-        int viewportHeight = (panelY + PANEL_H - BORDER_THICKNESS) - (panelY + BORDER_THICKNESS) - 20;
+        int viewportHeight = PANEL_H - BORDER_THICKNESS * 2 - 20;
         int maxScroll = Math.max(0, contentHeight - viewportHeight);
         settingsScroll = Math.max(0, Math.min(settingsScroll, maxScroll));
+    }
+
+    private void clampConfigsScroll() {
+        int contentHeight = getConfigsContentHeight();
+        int viewportHeight = PANEL_H - BORDER_THICKNESS * 2 - 16;
+        int maxScroll = Math.max(0, contentHeight - viewportHeight);
+        configScroll = Math.max(0, Math.min(configScroll, maxScroll));
+    }
+
+    private void clampSettingsTabScroll() {
+        int contentHeight = getSettingsTabContentHeight();
+        int viewportHeight = PANEL_H - BORDER_THICKNESS * 2 - 16;
+        int maxScroll = Math.max(0, contentHeight - viewportHeight);
+        settingsTabScroll = Math.max(0, Math.min(settingsTabScroll, maxScroll));
     }
 
     @Override
