@@ -58,7 +58,7 @@ public class ProjectileSimulator {
      *
      * Physics origin and direction exactly match Meteor Client's ProjectileEntitySimulator.set().
      */
-    public static SimulationResult simulate(PlayerEntity player, float tickDelta, Vec3d cameraPos) {
+    public static SimulationResult simulate(PlayerEntity player, float tickDelta) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.world == null) return null;
 
@@ -73,12 +73,12 @@ public class ProjectileSimulator {
             if (info == null) return null;
         }
 
-        // ── Origin: Use the exact cameraPos that the renderer subtracts ──
-        // This guarantees path[0] - cameraPos = (0,0,0) = crosshair.
-        // Since cameraPos cancels out in rendered[i] = path[i] - cameraPos,
-        // the rendered trajectory depends ONLY on velocity (stable player rotation).
-        // Result: zero sway, perfect crosshair alignment, perfect landing marker alignment.
-        Vec3d startPos = cameraPos;
+        // ── Origin: Interpolated entity position + eye height - 0.1 ──
+        // Matches Meteor: Utils.set(pos, user, tickDelta).add(0, user.getEyeHeight(pose) - 0.1f, 0)
+        double posX = MathHelper.lerp(tickDelta, player.lastRenderX, player.getX());
+        double posY = MathHelper.lerp(tickDelta, player.lastRenderY, player.getY());
+        double posZ = MathHelper.lerp(tickDelta, player.lastRenderZ, player.getZ());
+        Vec3d startPos = new Vec3d(posX, posY + (double) player.getEyeHeight(player.getPose()) - 0.1, posZ);
 
         // ── Direction: Matches Meteor's exact formula ──
         // Meteor: x = -sin(yaw * 0.017453292) * cos(pitch * 0.017453292)

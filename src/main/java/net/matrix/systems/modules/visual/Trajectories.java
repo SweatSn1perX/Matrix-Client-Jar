@@ -80,10 +80,13 @@ public class Trajectories extends Module implements Render3DModule {
         for (PlayerEntity player : mc.world.getPlayers()) {
             if (!otherPlayers.get() && player != mc.player) continue;
 
-            ProjectileSimulator.SimulationResult result = ProjectileSimulator.simulate(player, tickDelta, cameraPos);
+            ProjectileSimulator.SimulationResult result = ProjectileSimulator.simulate(player, tickDelta);
             if (result == null) continue;
 
-            renderPath(matrices, cameraPos, result, r, g, b, a, 0, tickDelta);
+            // Skip first ticks for local player to avoid near-camera bobbing artifacts
+            // This is exactly what Meteor Client does with ignoreFirstTicks
+            int startIdx = (player == mc.player) ? IGNORE_FIRST_TICKS : 0;
+            renderPath(matrices, cameraPos, result, r, g, b, a, startIdx, tickDelta);
         }
 
         // ── Fired projectile trajectories ──
@@ -136,23 +139,12 @@ public class Trajectories extends Module implements Render3DModule {
                 double hs = 0.25; // half-size of the impact quad
 
                 if (side == Direction.UP || side == Direction.DOWN) {
-                    // Filled horizontal disc at impact point
-                    double y = hitPos.y + (side == Direction.UP ? 0.005 : -0.005);
-                    // Draw filled disc using triangle fan
-                    int segments = 24;
-                    for (int seg = 0; seg < segments; seg++) {
-                        double angle1 = (2.0 * Math.PI * seg) / segments;
-                        double angle2 = (2.0 * Math.PI * (seg + 1)) / segments;
-                        Vec3d center = new Vec3d(hitPos.x, y, hitPos.z);
-                        Vec3d p1 = new Vec3d(hitPos.x + Math.cos(angle1) * hs, y, hitPos.z + Math.sin(angle1) * hs);
-                        Vec3d p2 = new Vec3d(hitPos.x + Math.cos(angle2) * hs, y, hitPos.z + Math.sin(angle2) * hs);
-                        // Draw as two line segments per triangle (approximates fill)
-                        RenderUtils.drawLine3D(matrices, center, p1, 255, 50, 50, 120);
-                        RenderUtils.drawLine3D(matrices, p1, p2, 255, 50, 50, 160);
-                    }
-                    // Outline on top
+                    // Horizontal flat quad — filled + outlined circle for clarity
+                    double y = hitPos.y + (side == Direction.UP ? 0.01 : -0.01);
+                    RenderUtils.drawFilledCircle3D(matrices, hitPos.x, y, hitPos.z,
+                            hs, 32, 255, 50, 50, 80);
                     RenderUtils.drawCircle3D(matrices, hitPos.x, y, hitPos.z,
-                            hs, segments, 255, 50, 50, 220);
+                            hs, 32, 255, 50, 50, 220);
                 } else if (side == Direction.NORTH || side == Direction.SOUTH) {
                     // Vertical on Z axis
                     Box hitBox = new Box(
